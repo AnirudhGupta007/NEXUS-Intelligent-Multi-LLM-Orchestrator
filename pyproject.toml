@@ -1,0 +1,22 @@
+[project]
+name = "nexus"
+version = "0.1.0"
+description = "AI orchestrator that routes queries to optimal LLMs via semantic KNN similarity"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.110.0",
+    "httpx>=0.28.1",
+    "langgraph>=0.2.50",
+    "langsmith>=0.1.80",
+    "litellm>=1.41.0",
+    "numpy",
+    "openai",
+    "pydantic>=2.12.5",
+    "pytest>=9.0.2",
+    "python-dotenv",
+    "requests>=2.32.5",
+    "scikit-learn",
+    "streamlit>=1.32.0",
+    "uvicorn[standard]",
+]
