@@ -19,13 +19,25 @@ async def judge_node(state: NexusState) -> dict:
     else:
         response_to_evaluate = "No response generated."
         
-    prompt = f"""Evaluate the agent's response to the original query.
-Return your evaluation in JSON format containing ONLY these keys:
-- score: float (0 to 10 scale of overall quality)
-- dimensions: dict containing values for 'accuracy', 'completeness', 'reasoning_depth' (each 0 to 10 string or float)
-- failure_reason: string (explain why it failed, or empty string if it passes)
-- retry_instruction: string (instructions on how a new agent should improve it, or empty)
-- escalate_to: string (a powerful model name to use for retry)
+    is_critical = state.get("is_critical", False)
+    strictness = "STRICT" if is_critical else "LENIENT"
+    context = (
+        "This is a CRITICAL query (medical/legal/financial). Be strict — accuracy is paramount. "
+        "Only pass responses that are thorough, accurate, and safe."
+        if is_critical else
+        "This is a standard query. Be lenient — if the response reasonably answers the question, "
+        "give it a passing score. Minor gaps are acceptable. Only reject clearly wrong or empty responses."
+    )
+
+    prompt = f"""Evaluate the agent's response. Mode: {strictness}.
+{context}
+
+Return ONLY JSON with these keys:
+- score: float (0-10). For standard queries, a reasonable answer should score 7+. For critical queries, only thorough answers score 7+.
+- dimensions: dict with 'accuracy', 'completeness', 'reasoning_depth' (each 0-10)
+- failure_reason: string (why it failed, or empty if it passes)
+- retry_instruction: string (how to improve, or empty)
+- escalate_to: string (model for retry, or empty)
 
 Original Query: {query}
 Agent Response: {response_to_evaluate}
@@ -36,7 +48,7 @@ Agent Response: {response_to_evaluate}
         response = await litellm.acompletion(
             model=JUDGE_MODEL,
             messages=[
-                {"role": "system", "content": f"You are a critical evaluation judge. If the score is below {JUDGE_THRESHOLD}, you must provide failure_reason and retry_instruction."},
+                {"role": "system", "content": f"You are a response quality judge. Score generously for standard queries (pass if the answer is useful). Score strictly for critical queries (medical/legal/financial). Threshold: {JUDGE_THRESHOLD}. If score < threshold, provide failure_reason and retry_instruction."},
                 {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"}
