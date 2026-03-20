@@ -17,7 +17,7 @@ MODEL_OPUS = "openrouter/anthropic/claude-opus-4.6"      # Critical code only
 # Special-purpose models
 JUDGE_MODEL = MODEL_GEMINI_FLASH
 AGGREGATOR_MODEL = MODEL_GEMINI_FLASH
-MODEL_EMBED = "gemini/text-embedding-004"
+MODEL_EMBED = "fireworks_ai/nomic-ai/nomic-embed-text-v1.5"
 
 # Thresholds
 JUDGE_THRESHOLD = 7.0
