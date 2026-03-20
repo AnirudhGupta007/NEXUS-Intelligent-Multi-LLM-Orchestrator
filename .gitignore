@@ -1,11 +1,17 @@
-# Python-generated files
 __pycache__/
-*.py[oc]
+*.py[cod]
+*.pyo
 build/
 dist/
 wheels/
 *.egg-info
-
-# Virtual environments
 .venv
+venv/
 .env
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+eval/*.json
+eval/*.csv
+uv.lock

@@ -3,7 +3,7 @@ name = "nexus"
 version = "0.1.0"
 description = "AI orchestrator that routes queries to optimal LLMs via semantic KNN similarity"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.110.0",
     "httpx>=0.28.1",
@@ -13,10 +13,25 @@ dependencies = [
     "numpy",
     "openai",
     "pydantic>=2.12.5",
-    "pytest>=9.0.2",
     "python-dotenv",
     "requests>=2.32.5",
     "scikit-learn",
     "streamlit>=1.32.0",
     "uvicorn[standard]",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"

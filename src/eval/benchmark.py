@@ -4,79 +4,88 @@ import json
 import uuid
 from langgraph.types import Command
 from core.graph import nexus_graph
-from core.config import GPT5_BASELINE_COST
+from core.config import (
+    GPT5_BASELINE_COST,
+    MODEL_LLAMA_GROQ,
+    MODEL_KIMI_K2,
+    MODEL_GPT_OSS,
+    MODEL_QWEN_235B,
+    MODEL_GPT4O,
+    MODEL_GEMINI_FLASH,
+    MODEL_OPUS,
+)
 
 # 60 realistic queries with expected model routing (approx 8-9 per category)
 QUERIES = [
     # Simple Q&A — expect Llama Groq
-    {"q": "Hello, how are you?", "expected": "groq/llama-3.1-8b-instant"},
-    {"q": "What is the capital of Japan?", "expected": "groq/llama-3.1-8b-instant"},
-    {"q": "Who invented the telephone?", "expected": "groq/llama-3.1-8b-instant"},
-    {"q": "What does DNA stand for?", "expected": "groq/llama-3.1-8b-instant"},
-    {"q": "How many days are in a leap year?", "expected": "groq/llama-3.1-8b-instant"},
-    {"q": "What is the largest ocean on Earth?", "expected": "groq/llama-3.1-8b-instant"},
-    {"q": "Who painted the Mona Lisa?", "expected": "groq/llama-3.1-8b-instant"},
-    {"q": "What is the speed of light?", "expected": "groq/llama-3.1-8b-instant"},
-    {"q": "Define entropy in one sentence.", "expected": "groq/llama-3.1-8b-instant"},
+    {"q": "Hello, how are you?", "expected": MODEL_LLAMA_GROQ},
+    {"q": "What is the capital of Japan?", "expected": MODEL_LLAMA_GROQ},
+    {"q": "Who invented the telephone?", "expected": MODEL_LLAMA_GROQ},
+    {"q": "What does DNA stand for?", "expected": MODEL_LLAMA_GROQ},
+    {"q": "How many days are in a leap year?", "expected": MODEL_LLAMA_GROQ},
+    {"q": "What is the largest ocean on Earth?", "expected": MODEL_LLAMA_GROQ},
+    {"q": "Who painted the Mona Lisa?", "expected": MODEL_LLAMA_GROQ},
+    {"q": "What is the speed of light?", "expected": MODEL_LLAMA_GROQ},
+    {"q": "Define entropy in one sentence.", "expected": MODEL_LLAMA_GROQ},
 
     # Code — expect Kimi K2
-    {"q": "Write a Python function to merge two sorted arrays.", "expected": "groq/kimi-k2"},
-    {"q": "Implement a stack using linked lists in Java.", "expected": "groq/kimi-k2"},
-    {"q": "Debug this TypeScript function that returns undefined.", "expected": "groq/kimi-k2"},
-    {"q": "Write unit tests for a REST API endpoint using pytest.", "expected": "groq/kimi-k2"},
-    {"q": "Create a React hook for debounced search.", "expected": "groq/kimi-k2"},
-    {"q": "Implement the observer pattern in Python.", "expected": "groq/kimi-k2"},
-    {"q": "Write a SQL query to find the second highest salary.", "expected": "groq/kimi-k2"},
-    {"q": "Convert this Python 2 code to Python 3.", "expected": "groq/kimi-k2"},
-    {"q": "Write a basic web scraper in Python using BeautifulSoup.", "expected": "groq/kimi-k2"},
+    {"q": "Write a Python function to merge two sorted arrays.", "expected": MODEL_KIMI_K2},
+    {"q": "Implement a stack using linked lists in Java.", "expected": MODEL_KIMI_K2},
+    {"q": "Debug this TypeScript function that returns undefined.", "expected": MODEL_KIMI_K2},
+    {"q": "Write unit tests for a REST API endpoint using pytest.", "expected": MODEL_KIMI_K2},
+    {"q": "Create a React hook for debounced search.", "expected": MODEL_KIMI_K2},
+    {"q": "Implement the observer pattern in Python.", "expected": MODEL_KIMI_K2},
+    {"q": "Write a SQL query to find the second highest salary.", "expected": MODEL_KIMI_K2},
+    {"q": "Convert this Python 2 code to Python 3.", "expected": MODEL_KIMI_K2},
+    {"q": "Write a basic web scraper in Python using BeautifulSoup.", "expected": MODEL_KIMI_K2},
 
     # General — expect GPT OSS 120B
-    {"q": "Compare the pros and cons of electric vs hydrogen cars.", "expected": "groq/gpt-oss-120b"},
-    {"q": "Explain how blockchain consensus mechanisms work.", "expected": "groq/gpt-oss-120b"},
-    {"q": "What are the key differences between agile and waterfall?", "expected": "groq/gpt-oss-120b"},
-    {"q": "Explain the model-view-controller architecture pattern.", "expected": "groq/gpt-oss-120b"},
-    {"q": "Describe how DNS resolution works step by step.", "expected": "groq/gpt-oss-120b"},
-    {"q": "Compare Docker and virtual machines.", "expected": "groq/gpt-oss-120b"},
-    {"q": "What are the trade-offs of eventual consistency?", "expected": "groq/gpt-oss-120b"},
-    {"q": "How does HTTPS encryption work?", "expected": "groq/gpt-oss-120b"},
-    {"q": "Explain the difference between threads and processes.", "expected": "groq/gpt-oss-120b"},
+    {"q": "Compare the pros and cons of electric vs hydrogen cars.", "expected": MODEL_GPT_OSS},
+    {"q": "Explain how blockchain consensus mechanisms work.", "expected": MODEL_GPT_OSS},
+    {"q": "What are the key differences between agile and waterfall?", "expected": MODEL_GPT_OSS},
+    {"q": "Explain the model-view-controller architecture pattern.", "expected": MODEL_GPT_OSS},
+    {"q": "Describe how DNS resolution works step by step.", "expected": MODEL_GPT_OSS},
+    {"q": "Compare Docker and virtual machines.", "expected": MODEL_GPT_OSS},
+    {"q": "What are the trade-offs of eventual consistency?", "expected": MODEL_GPT_OSS},
+    {"q": "How does HTTPS encryption work?", "expected": MODEL_GPT_OSS},
+    {"q": "Explain the difference between threads and processes.", "expected": MODEL_GPT_OSS},
 
     # Research — expect Qwen 235B
-    {"q": "Analyze the economic impact of AI on the labor market in 2025.", "expected": "cerebras/qwen3-235b"},
-    {"q": "Write a comprehensive overview of mRNA vaccine technology.", "expected": "cerebras/qwen3-235b"},
-    {"q": "Explain the geopolitical implications of semiconductor supply chains.", "expected": "cerebras/qwen3-235b"},
-    {"q": "Provide a deep analysis of central bank digital currencies.", "expected": "cerebras/qwen3-235b"},
-    {"q": "Summarize the evolution of machine learning from 1950 to present.", "expected": "cerebras/qwen3-235b"},
-    {"q": "Analyze the sociological effects of social media on Gen Z.", "expected": "cerebras/qwen3-235b"},
-    {"q": "Write a literature review on attention mechanisms in NLP.", "expected": "cerebras/qwen3-235b"},
-    {"q": "Compare the education systems of Finland, Japan, and the US.", "expected": "cerebras/qwen3-235b"},
+    {"q": "Analyze the economic impact of AI on the labor market in 2025.", "expected": MODEL_QWEN_235B},
+    {"q": "Write a comprehensive overview of mRNA vaccine technology.", "expected": MODEL_QWEN_235B},
+    {"q": "Explain the geopolitical implications of semiconductor supply chains.", "expected": MODEL_QWEN_235B},
+    {"q": "Provide a deep analysis of central bank digital currencies.", "expected": MODEL_QWEN_235B},
+    {"q": "Summarize the evolution of machine learning from 1950 to present.", "expected": MODEL_QWEN_235B},
+    {"q": "Analyze the sociological effects of social media on Gen Z.", "expected": MODEL_QWEN_235B},
+    {"q": "Write a literature review on attention mechanisms in NLP.", "expected": MODEL_QWEN_235B},
+    {"q": "Compare the education systems of Finland, Japan, and the US.", "expected": MODEL_QWEN_235B},
 
     # Critical — expect GPT-4o
-    {"q": "Is it safe to combine metformin and alcohol?", "expected": "openai/gpt-4o"},
-    {"q": "What are my rights if wrongfully terminated in Texas?", "expected": "openai/gpt-4o"},
-    {"q": "Explain the tax implications of selling inherited property.", "expected": "openai/gpt-4o"},
-    {"q": "What are the warning signs of a stroke?", "expected": "openai/gpt-4o"},
-    {"q": "Review this non-compete clause for enforceability issues.", "expected": "openai/gpt-4o"},
-    {"q": "What are the fiduciary duties of a board of directors?", "expected": "openai/gpt-4o"},
-    {"q": "Explain HIPAA compliance requirements for a web app.", "expected": "openai/gpt-4o"},
-    {"q": "What are the side effects of long-term statin use?", "expected": "openai/gpt-4o"},
+    {"q": "Is it safe to combine metformin and alcohol?", "expected": MODEL_GPT4O},
+    {"q": "What are my rights if wrongfully terminated in Texas?", "expected": MODEL_GPT4O},
+    {"q": "Explain the tax implications of selling inherited property.", "expected": MODEL_GPT4O},
+    {"q": "What are the warning signs of a stroke?", "expected": MODEL_GPT4O},
+    {"q": "Review this non-compete clause for enforceability issues.", "expected": MODEL_GPT4O},
+    {"q": "What are the fiduciary duties of a board of directors?", "expected": MODEL_GPT4O},
+    {"q": "Explain HIPAA compliance requirements for a web app.", "expected": MODEL_GPT4O},
+    {"q": "What are the side effects of long-term statin use?", "expected": MODEL_GPT4O},
 
     # Math — expect Gemini Flash
-    {"q": "Solve for x: 5x^2 - 3x + 2 = 0.", "expected": "gemini/gemini-2.5-flash"},
-    {"q": "What is the derivative of ln(x^2 + 1)?", "expected": "gemini/gemini-2.5-flash"},
-    {"q": "Calculate compound interest: $5000 at 4% for 10 years.", "expected": "gemini/gemini-2.5-flash"},
-    {"q": "Convert 250 kilometers per hour to miles per hour.", "expected": "gemini/gemini-2.5-flash"},
-    {"q": "Find the eigenvalues of matrix [[2,1],[1,2]].", "expected": "gemini/gemini-2.5-flash"},
-    {"q": "Integrate x*e^x dx.", "expected": "gemini/gemini-2.5-flash"},
-    {"q": "Compute the probability of rolling sum 7 with two dice.", "expected": "gemini/gemini-2.5-flash"},
+    {"q": "Solve for x: 5x^2 - 3x + 2 = 0.", "expected": MODEL_GEMINI_FLASH},
+    {"q": "What is the derivative of ln(x^2 + 1)?", "expected": MODEL_GEMINI_FLASH},
+    {"q": "Calculate compound interest: $5000 at 4% for 10 years.", "expected": MODEL_GEMINI_FLASH},
+    {"q": "Convert 250 kilometers per hour to miles per hour.", "expected": MODEL_GEMINI_FLASH},
+    {"q": "Find the eigenvalues of matrix [[2,1],[1,2]].", "expected": MODEL_GEMINI_FLASH},
+    {"q": "Integrate x*e^x dx.", "expected": MODEL_GEMINI_FLASH},
+    {"q": "Compute the probability of rolling sum 7 with two dice.", "expected": MODEL_GEMINI_FLASH},
 
     # Critical code — expect Opus
-    {"q": "Write production JWT auth middleware with refresh tokens for Express.", "expected": "openrouter/anthropic/claude-opus-4.6"},
-    {"q": "Design a scalable event-driven payment processing system.", "expected": "openrouter/anthropic/claude-opus-4.6"},
-    {"q": "Perform a security audit on this REST API implementation.", "expected": "openrouter/anthropic/claude-opus-4.6"},
-    {"q": "Implement distributed locking with Redis and proper failover.", "expected": "openrouter/anthropic/claude-opus-4.6"},
-    {"q": "Write a complete CI/CD pipeline for Kubernetes deployment.", "expected": "openrouter/anthropic/claude-opus-4.6"},
-    {"q": "Design the database schema for encrypted real-time messaging.", "expected": "openrouter/anthropic/claude-opus-4.6"},
+    {"q": "Write production JWT auth middleware with refresh tokens for Express.", "expected": MODEL_OPUS},
+    {"q": "Design a scalable event-driven payment processing system.", "expected": MODEL_OPUS},
+    {"q": "Perform a security audit on this REST API implementation.", "expected": MODEL_OPUS},
+    {"q": "Implement distributed locking with Redis and proper failover.", "expected": MODEL_OPUS},
+    {"q": "Write a complete CI/CD pipeline for Kubernetes deployment.", "expected": MODEL_OPUS},
+    {"q": "Design the database schema for encrypted real-time messaging.", "expected": MODEL_OPUS},
 ]
 
 
@@ -153,7 +162,7 @@ async def run_benchmark():
                 "knn_top_score": round(top_knn, 4),
             })
 
-            status = "✅" if routed_model == expected else "❌"
+            status = "OK" if routed_model == expected else "❌"
             print(f"[{idx+1}/{len(QUERIES)}] {status} routed={routed_model} expected={expected} latency={latency:.1f}s")
 
         except Exception as e:

@@ -1,4 +1,6 @@
 import json
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,10 +10,11 @@ from langgraph.types import Command
 from core.graph import nexus_graph
 from core.config import MODEL_COSTS, GPT5_BASELINE_COST
 from core.prototypes import MODEL_PROTOTYPES
+from core.logging import get_logger
 import agents.knn_router as knn_mod
 
-app = FastAPI(title="NEXUS")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+log = get_logger("api")
+
 active_sessions = {}
 
 
@@ -25,36 +28,34 @@ class ResumeRequest(BaseModel):
     answer: str
 
 
-@app.on_event("startup")
-async def startup():
-    """Build the KNN index at startup by embedding all prototypes."""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     from agents.knn_router import build_knn_index
     knn_mod.KNN_INDEX = await build_knn_index()
-    print(f"KNN index built: {knn_mod.KNN_INDEX['all_vectors'].shape[0]} vectors loaded")
+    log.info("KNN index built: %d vectors loaded", knn_mod.KNN_INDEX["all_vectors"].shape[0])
+    yield
+
+
+app = FastAPI(title="NEXUS", lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 
 async def state_to_sse(generator):
-    """Parses LangGraph stream events into SSE formatted bytes."""
     try:
         async for event in generator:
             kind = event.get("event")
-
             if kind == "on_chain_end" and not event.get("name") == "LangGraph":
                 data = event.get("data", {})
                 if "output" in data and isinstance(data["output"], dict):
                     output = data["output"]
-
                     if "trace" in output:
                         trace_list = output["trace"]
                         if trace_list:
                             latest_trace = trace_list[-1]
                             yield f"data: {json.dumps({'type': 'trace', 'entry': latest_trace, 'knn_scores': output.get('knn_scores', {})})}\n\n"
-
                     if "clarifying_question" in output and output.get("clarifying_question"):
                         yield f"data: {json.dumps({'type': 'interrupt', 'question': output['clarifying_question']})}\n\n"
                         break
-
-                    # Check for final exit
                     if "final_response" in output and output.get("final_response"):
                         total_cost = output.get("total_cost", 0.0)
                         total_latency = output.get("total_latency", 0.0)
@@ -76,10 +77,9 @@ async def state_to_sse(generator):
                             "used_models": used_models,
                         }
                         yield f"data: {json.dumps(payload)}\n\n"
-
     except Exception as e:
+        log.error("SSE stream error: %s", e)
         yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-
     yield "data: [DONE]\n\n"
 
 
@@ -87,7 +87,6 @@ async def state_to_sse(generator):
 async def chat_endpoint(req: ChatRequest):
     config = {"configurable": {"thread_id": req.session_id}}
     active_sessions[req.session_id] = config
-
     initial_state = {
         "query": req.query,
         "trace": [],
@@ -107,7 +106,6 @@ async def resume_endpoint(req: ResumeRequest):
     config = active_sessions.get(req.session_id)
     if not config:
         return {"error": "Session not found"}
-
     stream_generator = nexus_graph.astream_events(Command(resume=req.answer), config=config, version="v2")
     return StreamingResponse(state_to_sse(stream_generator), media_type="text/event-stream")
 
