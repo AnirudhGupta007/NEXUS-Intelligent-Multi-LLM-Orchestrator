@@ -9,7 +9,7 @@ from datetime import datetime
 
 from langgraph.types import Command
 
-from core.config import GPT5_BASELINE_COST
+from core.config import GPT5_BASELINE_COST, CATEGORY_BASELINES
 from core.graph import nexus_graph
 from eval.benchmark import QUERIES
 import agents.knn_router as knn_mod
@@ -35,7 +35,7 @@ def _extract_flow(memory: dict) -> list[str]:
     return flow
 
 
-async def _run_single_query(idx: int, query: str, expected: str, query_timeout_s: float) -> dict:
+async def _run_single_query(idx: int, query: str, expected: str, category: str, query_timeout_s: float) -> dict:
     session_id = str(uuid.uuid4())
     config = {"configurable": {"thread_id": session_id}}
     initial_state = {
@@ -114,6 +114,9 @@ async def _run_single_query(idx: int, query: str, expected: str, query_timeout_s
         "can_self_answer": can_self_answer,
         "failure_type": failure_type,
         "error": error,
+        "category": category,
+        "baseline_cost": CATEGORY_BASELINES.get(category, GPT5_BASELINE_COST),
+        "saved_vs_baseline": round(CATEGORY_BASELINES.get(category, GPT5_BASELINE_COST) - cost, 6),
         "success": error == "",
     }
     return result
@@ -132,6 +135,7 @@ async def run_e2e_benchmark(limit: int | None = None, query_timeout_s: float = 9
         result = await _run_single_query(
             idx=idx,
             query=item["q"],
+            category=item.get("category", "unknown"),
             expected=item["expected"],
             query_timeout_s=query_timeout_s,
         )
@@ -177,7 +181,34 @@ async def run_e2e_benchmark(limit: int | None = None, query_timeout_s: float = 9
         "saved_vs_gpt5_total_usd_success_only": round(saved_total, 6),
     }
 
+    # Per-category breakdown
+    categories = {}
+    for r in success_rows:
+        cat = r.get("category", "unknown")
+        if cat not in categories:
+            categories[cat] = {"count": 0, "total_cost": 0.0, "total_baseline": 0.0, "correct": 0}
+        categories[cat]["count"] += 1
+        categories[cat]["total_cost"] += r["cost_usd"]
+        categories[cat]["total_baseline"] += r.get("baseline_cost", GPT5_BASELINE_COST)
+        if r["correct_routing"]:
+            categories[cat]["correct"] += 1
+
+    category_summary = {}
+    for cat, data in sorted(categories.items()):
+        avg_cost = data["total_cost"] / data["count"]
+        avg_baseline = data["total_baseline"] / data["count"]
+        savings_pct = ((avg_baseline - avg_cost) / avg_baseline * 100) if avg_baseline > 0 else 0
+        category_summary[cat] = {
+            "queries": data["count"],
+            "routing_accuracy": round(data["correct"] / data["count"] * 100, 1),
+            "avg_cost": round(avg_cost, 6),
+            "avg_baseline": round(avg_baseline, 6),
+            "savings_pct": round(savings_pct, 1),
+        }
+    summary["per_category"] = category_summary
+
     os.makedirs("eval", exist_ok=True)
+
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     json_path = os.path.join("eval", f"e2e_benchmark_{ts}.json")
     csv_path = os.path.join("eval", f"e2e_benchmark_{ts}.csv")
@@ -208,6 +239,9 @@ async def run_e2e_benchmark(limit: int | None = None, query_timeout_s: float = 9
         "flow_nodes",
         "can_self_answer",
         "failure_type",
+        "category",
+        "baseline_cost",
+        "saved_vs_baseline",
         "success",
         "error",
     ]

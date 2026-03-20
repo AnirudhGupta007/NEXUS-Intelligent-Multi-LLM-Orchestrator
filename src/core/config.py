@@ -39,3 +39,15 @@ MODEL_COSTS = {
     MODEL_GEMINI_FLASH: {"input": 0.075, "output": 0.30},
     MODEL_OPUS: {"input": 15.00, "output": 75.00},
 }
+
+# Per-category GPT-5 baseline costs (USD per query, estimated)
+# These reflect what it would cost to send each query type to GPT-5 directly
+CATEGORY_BASELINES = {
+    "simple_qa": 0.002,      # Short response, low tokens
+    "code": 0.008,           # Medium response, moderate tokens
+    "general": 0.006,        # Medium response
+    "research": 0.015,       # Long response, high tokens
+    "critical": 0.012,       # Medium-high response
+    "math": 0.004,           # Short response
+    "critical_code": 0.020,  # Long code response
+}

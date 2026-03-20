@@ -32,6 +32,21 @@ def _is_greeting_or_smalltalk(query: str) -> bool:
     return q.startswith("hi ") or q.startswith("hello ") or q.startswith("hey ")
 
 
+
+_CRITICAL_WORDS = frozenset([
+    'medical', 'medicine', 'drug', 'dosage', 'symptom', 'diagnosis', 'disease',
+    'surgery', 'pregnant', 'legal', 'lawyer', 'lawsuit', 'court', 'rights',
+    'terminated', 'fired', 'wrongful', 'tax', 'invest', 'mortgage', 'loan',
+    'insurance', 'financial', 'fiduciary', 'safe', 'safety', 'emergency',
+    'suicide', 'poison', 'overdose', 'hipaa', 'compliance', 'regulation',
+    'fda', 'audit', 'liability', 'malpractice', 'stroke', 'symptoms',
+])
+
+
+def _is_likely_critical(query: str) -> bool:
+    tokens = re.sub(r"[^a-z\s]", "", query.lower()).split()
+    return bool(set(tokens) & _CRITICAL_WORDS)
+
 async def classifier_node(state: NexusState) -> dict:
     """Classifies the incoming query using Cerebras Llama 3.1 8B.
     Returns: can_self_answer, is_critical, is_ambiguous, clarifying_question,
@@ -46,7 +61,7 @@ async def classifier_node(state: NexusState) -> dict:
 - self_answer: string or null (your direct answer if can_self_answer is true)
 - is_ambiguous: bool (true if the query lacks sufficient detail and needs human clarification)
 - clarifying_question: string or null (the question to ask the user if is_ambiguous is true)
-- is_critical: bool (true if this involves sensitive data, important logic, medical, legal, or financial topics)
+- is_critical: bool (true ONLY if this involves medical/health advice, legal questions, financial decisions, or safety-critical topics. Code, math, general knowledge, and research questions are NOT critical)
 - subtasks: list of strings (break into distinct subtasks if the query has multiple parts, otherwise empty list)
 
 Return ONLY JSON. No markdown, no explanation.
@@ -85,6 +100,11 @@ Query: {query}"""
     if conversation_turns > 0:
         is_ambiguous = False
 
+    # Guardrail: override is_critical — small LLMs over-flag this
+    is_critical = result.get("is_critical", False)
+    if is_critical and not _is_likely_critical(query):
+        is_critical = False
+
     can_self_answer = result.get("can_self_answer", False)
     # Guardrail: only allow early exit for clear greeting/small-talk.
     if can_self_answer and not _is_greeting_or_smalltalk(query):
@@ -97,14 +117,14 @@ Query: {query}"""
     trace_entry: TraceEntry = {
         "node": "classifier",
         "action": "classified",
-        "detail": f"self={can_self_answer} ambiguous={is_ambiguous} critical={result.get('is_critical', False)} subtasks={len(subtasks)}",
+        "detail": f"self={can_self_answer} ambiguous={is_ambiguous} critical={is_critical} subtasks={len(subtasks)}",
         "timestamp": time.time(),
     }
 
     output = {
         "can_self_answer": can_self_answer,
         "is_ambiguous": is_ambiguous,
-        "is_critical": result.get("is_critical", False),
+        "is_critical": is_critical,
         "clarifying_question": result.get("clarifying_question") or "",
         "subtasks": subtasks,
         "original_query": query,
