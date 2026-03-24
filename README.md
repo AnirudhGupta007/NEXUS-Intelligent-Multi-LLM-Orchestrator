@@ -36,7 +36,7 @@ Query -> Classifier (Cerebras Llama 3.1 8B, ~200ms)
          is_ambiguous?    -> HITL: interrupt() -> user clarifies -> resume
          |
          KNN Router (Fireworks nomic-embed, ~10ms)
-         embed query -> cosine similarity vs 70 prototypes -> top-5 vote
+         embed query -> cosine similarity vs 105 prototypes -> top-5 vote
          |                          |
          single task                subtasks[]
          Worker Node                Parallel Workers (asyncio.gather) -> Aggregator
@@ -159,7 +159,7 @@ nexus/
 │   │   ├── config.py         # Model constants, thresholds, cost tables
 │   │   ├── metrics.py        # Cost calculation (LiteLLM + manual fallback)
 │   │   ├── logging.py        # Structured logging
-│   │   └── prototypes.py     # 70 prototype queries for KNN (10 per model)
+│   │   └── prototypes.py     # 105 prototype queries for KNN (15 per model)
 │   ├── agents/
 │   │   ├── classifier.py     # Cerebras classifier + greeting/critical guardrails
 │   │   ├── knn_router.py     # Embed + cosine similarity + top-5 KNN vote

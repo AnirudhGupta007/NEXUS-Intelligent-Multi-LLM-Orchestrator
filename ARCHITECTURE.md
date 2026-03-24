@@ -24,7 +24,7 @@ NEXUS is a production-grade multi-LLM orchestration system that intelligently ro
                                    |             |
                           +--------v-------------v---+
                           |      KNN Router          |  Fireworks nomic-embed (~10ms)
-                          |  embed -> cosine sim     |  70 prototypes, top-5 vote
+                          |  embed -> cosine sim     |  105 prototypes, top-5 vote
                           |  -> majority vote        |
                           +------+-------------+-----+
                                  |             |
