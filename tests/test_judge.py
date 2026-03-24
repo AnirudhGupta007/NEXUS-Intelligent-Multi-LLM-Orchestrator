@@ -2,7 +2,7 @@ import json
 import pytest
 from unittest.mock import patch, AsyncMock
 from agents.judge import judge_node, escalation_worker_node
-from core.config import MODEL_OPUS
+from core.config import MODEL_OPUS, MODEL_GPT4O, ESCALATION_MODELS
 from tests.conftest import make_mock_completion
 
 
@@ -30,6 +30,14 @@ class TestJudgeNode:
         with patch("agents.judge.litellm.acompletion", new_callable=AsyncMock, side_effect=Exception("fail")):
             result = await judge_node({"query": "test", "worker_responses": [{"response": "x"}], "total_cost": 0.0, "total_latency": 0.0, "escalation_count": 0})
         assert result["judge_score"] == 0.0
+        # Default escalation for non-critical queries is now GPT-4o
+        assert result["escalation_model"] == ESCALATION_MODELS["default"]
+
+    @pytest.mark.asyncio
+    async def test_llm_failure_escalates_critical_to_opus(self):
+        """Critical (medical/legal) queries should escalate to Opus on judge failure."""
+        with patch("agents.judge.litellm.acompletion", new_callable=AsyncMock, side_effect=Exception("fail")):
+            result = await judge_node({"query": "Is it safe to take this drug with alcohol?", "is_critical": True, "worker_responses": [{"response": "x"}], "total_cost": 0.0, "total_latency": 0.0, "escalation_count": 0})
         assert result["escalation_model"] == MODEL_OPUS
 
 

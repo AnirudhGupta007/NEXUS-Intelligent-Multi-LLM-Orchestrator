@@ -1,6 +1,6 @@
 import time
 import numpy as np
-from collections import Counter
+from collections import Counter, OrderedDict
 from sklearn.metrics.pairwise import cosine_similarity
 import litellm
 
@@ -10,6 +10,23 @@ from core.prototypes import MODEL_PROTOTYPES
 
 # Module-level KNN index — set once at FastAPI startup
 KNN_INDEX = None
+
+# Simple LRU cache for query embeddings to avoid redundant API calls
+_EMBED_CACHE: OrderedDict[str, list[float]] = OrderedDict()
+_EMBED_CACHE_MAX = 1000
+
+
+async def _cached_embed(query: str) -> list[float]:
+    """Embed a query with LRU caching."""
+    if query in _EMBED_CACHE:
+        _EMBED_CACHE.move_to_end(query)
+        return _EMBED_CACHE[query]
+    response = await litellm.aembedding(model=MODEL_EMBED, input=[query])
+    vec = response.data[0]["embedding"]
+    _EMBED_CACHE[query] = vec
+    if len(_EMBED_CACHE) > _EMBED_CACHE_MAX:
+        _EMBED_CACHE.popitem(last=False)
+    return vec
 
 
 async def build_knn_index() -> dict:
@@ -38,9 +55,8 @@ async def semantic_route(query: str, index: dict) -> tuple:
     Returns:
         (best_model, knn_scores) where knn_scores is {model: float}
     """
-    # Embed the query
-    response = await litellm.aembedding(model=MODEL_EMBED, input=[query])
-    query_vec = response.data[0]["embedding"]
+    # Embed the query (with LRU cache)
+    query_vec = await _cached_embed(query)
 
     # Cosine similarity vs all prototypes
     scores = cosine_similarity([query_vec], index["all_vectors"])[0]

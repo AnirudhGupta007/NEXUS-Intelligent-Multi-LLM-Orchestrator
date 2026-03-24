@@ -3,8 +3,9 @@ from core.config import (
     MODEL_QWEN_235B, MODEL_GPT4O, MODEL_GEMINI_FLASH, MODEL_OPUS
 )
 
-# MODEL_PROTOTYPES: 8-10 realistic example queries per model
+# MODEL_PROTOTYPES: 15 realistic example queries per model
 # Used by KNN router to embed and match incoming queries to the best model
+# Each prototype should be representative of the query TYPE that model handles best
 
 MODEL_PROTOTYPES = {
     MODEL_LLAMA_GROQ: [
@@ -18,6 +19,11 @@ MODEL_PROTOTYPES = {
         "What color is the sky?",
         "Who is the president of the United States?",
         "What year did World War II end?",
+        "What is the speed of light?",
+        "How many days are in a leap year?",
+        "What is the largest ocean on Earth?",
+        "Who painted the Mona Lisa?",
+        "What does DNA stand for?",
     ],
     MODEL_KIMI_K2: [
         "Write a Python function to reverse a linked list.",
@@ -30,6 +36,11 @@ MODEL_PROTOTYPES = {
         "Implement quicksort algorithm in Python.",
         "Convert this callback-based function to async/await.",
         "Write a Dockerfile for a Flask application.",
+        "Write a Python function to merge two sorted arrays.",
+        "Implement a stack using linked lists in Java.",
+        "Create a React hook for debounced search.",
+        "Implement the observer pattern in Python.",
+        "Write a basic web scraper in Python using BeautifulSoup.",
     ],
     MODEL_GPT_OSS: [
         "Compare the pros and cons of microservices vs monolithic architecture.",
@@ -42,6 +53,11 @@ MODEL_PROTOTYPES = {
         "Explain the observer design pattern with an example.",
         "What are the trade-offs between SQL and NoSQL databases?",
         "Describe the SOLID principles in software engineering.",
+        "Compare Docker and virtual machines.",
+        "How does HTTPS encryption work?",
+        "Explain the difference between threads and processes.",
+        "Summarize this paragraph in 2 sentences.",
+        "Convert this JSON to a CSV format.",
     ],
     MODEL_QWEN_235B: [
         "Summarize the economic impact of the Industrial Revolution on Europe.",
@@ -54,6 +70,11 @@ MODEL_PROTOTYPES = {
         "Explain the philosophical foundations of artificial intelligence ethics.",
         "Summarize the history and evolution of the internet from ARPANET to Web3.",
         "Analyze the impact of remote work on urban planning and real estate.",
+        "Analyze the economic impact of AI on the labor market in 2025.",
+        "Write a comprehensive overview of mRNA vaccine technology.",
+        "Analyze the sociological effects of social media on Gen Z.",
+        "Write a literature review on attention mechanisms in NLP.",
+        "Compare the education systems of Finland, Japan, and the US.",
     ],
     MODEL_GPT4O: [
         "Is it safe to take ibuprofen with blood thinners?",
@@ -66,6 +87,11 @@ MODEL_PROTOTYPES = {
         "What are the legal requirements for starting an LLC in California?",
         "How does the statute of limitations work for medical malpractice?",
         "What are the risks and benefits of LASIK eye surgery?",
+        "Is it safe to combine metformin and alcohol?",
+        "What are my rights if wrongfully terminated in Texas?",
+        "Explain the tax implications of selling inherited property.",
+        "What are the warning signs of a stroke?",
+        "What are the side effects of long-term statin use?",
     ],
     MODEL_GEMINI_FLASH: [
         "What is the square root of 144?",
@@ -74,10 +100,15 @@ MODEL_PROTOTYPES = {
         "Convert 72 degrees Fahrenheit to Celsius.",
         "What is the derivative of x^3 + 2x?",
         "Calculate the area of a triangle with base 10 and height 8.",
-        "Summarize this paragraph in 2 sentences.",
-        "Convert this JSON to a CSV format.",
         "What is the integral of sin(x) from 0 to pi?",
         "Calculate the monthly payment on a $300,000 mortgage at 6.5% for 30 years.",
+        "Solve for x: 5x^2 - 3x + 2 = 0.",
+        "Convert 250 kilometers per hour to miles per hour.",
+        "Find the eigenvalues of matrix [[2,1],[1,2]].",
+        "Integrate x*e^x dx.",
+        "Compute the probability of rolling sum 7 with two dice.",
+        "What is the derivative of ln(x^2 + 1)?",
+        "Calculate compound interest: $5000 at 4% for 10 years.",
     ],
     MODEL_OPUS: [
         "Write production-ready JWT authentication middleware for Express.js with refresh tokens.",
@@ -90,5 +121,10 @@ MODEL_PROTOTYPES = {
         "Write a comprehensive security audit checklist for a REST API.",
         "Design an event-driven architecture for a payment processing system.",
         "Implement a custom OAuth 2.0 authorization server with PKCE flow.",
+        "Design a scalable event-driven payment processing system.",
+        "Perform a security audit on this REST API implementation.",
+        "Implement distributed locking with Redis and proper failover.",
+        "Write a complete CI/CD pipeline for Kubernetes deployment.",
+        "Design the database schema for encrypted real-time messaging.",
     ],
 }

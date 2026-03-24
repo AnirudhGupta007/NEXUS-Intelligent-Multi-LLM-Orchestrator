@@ -1,15 +1,38 @@
 import json
+import re
 import time
 import litellm
 from core.state import NexusState, TraceEntry
-from core.config import JUDGE_MODEL, JUDGE_THRESHOLD, MAX_ESCALATIONS, MODEL_OPUS
+from core.config import (
+    JUDGE_MODEL, JUDGE_THRESHOLD, JUDGE_THRESHOLDS,
+    MAX_ESCALATIONS, MODEL_OPUS, ESCALATION_MODELS,
+)
 from core.metrics import calculate_cost
+
+_CODE_KEYWORDS = frozenset([
+    'write', 'implement', 'code', 'function', 'class', 'api', 'endpoint',
+    'deploy', 'kubernetes', 'docker', 'pipeline', 'ci', 'cd', 'jwt', 'oauth',
+    'middleware', 'schema', 'database', 'microservices', 'architecture',
+    'redis', 'express', 'react', 'python', 'java', 'typescript', 'golang',
+    'production', 'scalable', 'distributed', 'encryption', 'auth',
+])
+
+
+def _infer_category(query: str, is_critical: bool) -> str:
+    """Infer query category for threshold/escalation model selection."""
+    if not is_critical:
+        return "default"
+    tokens = set(re.sub(r"[^a-z\s]", "", query.lower()).split())
+    if tokens & _CODE_KEYWORDS:
+        return "critical_code"
+    return "critical"
+
 
 async def judge_node(state: NexusState) -> dict:
     """Evaluate response quality and approve or trigger escalation."""
-    
+
     query = state.get("enriched_query") or state.get("query", "")
-    
+
     # Evaluate previously generated content
     if state.get("aggregated_response"):
         response_to_evaluate = state.get("aggregated_response")
@@ -18,8 +41,12 @@ async def judge_node(state: NexusState) -> dict:
         response_to_evaluate = worker_responses[-1].get("response", "") if worker_responses else "No response."
     else:
         response_to_evaluate = "No response generated."
-        
+
     is_critical = state.get("is_critical", False)
+    category = _infer_category(query, is_critical)
+    threshold = JUDGE_THRESHOLDS.get(category, JUDGE_THRESHOLD)
+    default_escalation_model = ESCALATION_MODELS.get(category, ESCALATION_MODELS["default"])
+
     strictness = "STRICT" if is_critical else "LENIENT"
     context = (
         "This is a CRITICAL query (medical/legal/financial). Be strict — accuracy is paramount. "
@@ -42,13 +69,13 @@ Return ONLY JSON with these keys:
 Original Query: {query}
 Agent Response: {response_to_evaluate}
 """
-    
+
     try:
         start = time.time()
         response = await litellm.acompletion(
             model=JUDGE_MODEL,
             messages=[
-                {"role": "system", "content": f"You are a response quality judge. Score generously for standard queries (pass if the answer is useful). Score strictly for critical queries (medical/legal/financial). Threshold: {JUDGE_THRESHOLD}. If score < threshold, provide failure_reason and retry_instruction."},
+                {"role": "system", "content": f"You are a response quality judge. Score generously for standard queries (pass if the answer is useful). Score strictly for critical queries (medical/legal/financial). Threshold: {threshold}. If score < threshold, provide failure_reason and retry_instruction."},
                 {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"}
@@ -57,28 +84,28 @@ Agent Response: {response_to_evaluate}
         content = response.choices[0].message.content
         result = json.loads(content)
         cost = calculate_cost(JUDGE_MODEL, response)
-            
+
     except Exception as e:
-        # Failsafe fallback 
+        # Failsafe fallback
         result = {
             "score": 0.0,
             "failure_reason": f"Evaluation system error: {str(e)}",
             "retry_instruction": "Retry with a highly intelligent model.",
-            "escalate_to": MODEL_OPUS
+            "escalate_to": default_escalation_model,
         }
         cost = 0.0
         latency_ms = 0.0
-        
+
     score = result.get("score", 0.0)
-    passed = score >= JUDGE_THRESHOLD
-    
+    passed = score >= threshold
+
     trace_entry: TraceEntry = {
         "node": "judge",
         "action": "approved" if passed else "rejected",
-        "detail": f"Score {score:.1f}. " + (f"Passed." if passed else f"Reason: {result.get('failure_reason')}"),
+        "detail": f"Score {score:.1f}/{threshold}. " + (f"Passed." if passed else f"Reason: {result.get('failure_reason')}"),
         "timestamp": time.time()
     }
-    
+
     output = {
         "judge_score": score,
         "judge_feedback": result.get("failure_reason", ""),
@@ -86,12 +113,13 @@ Agent Response: {response_to_evaluate}
         "total_cost": state.get("total_cost", 0.0) + cost,
         "total_latency": state.get("total_latency", 0.0) + (latency_ms / 1000),
     }
-    
+
     if passed:
         return output
     else:
-        # Reject and trigger escalation
-        output["escalation_model"] = result.get("escalate_to", MODEL_OPUS)
+        # Use category-appropriate escalation model instead of always Opus
+        escalation_model = result.get("escalate_to") or default_escalation_model
+        output["escalation_model"] = escalation_model
         output["escalation_instruction"] = result.get("retry_instruction", "")
         return output
 

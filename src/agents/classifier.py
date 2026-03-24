@@ -33,19 +33,46 @@ def _is_greeting_or_smalltalk(query: str) -> bool:
 
 
 
-_CRITICAL_WORDS = frozenset([
-    'medical', 'medicine', 'drug', 'dosage', 'symptom', 'diagnosis', 'disease',
-    'surgery', 'pregnant', 'legal', 'lawyer', 'lawsuit', 'court', 'rights',
-    'terminated', 'fired', 'wrongful', 'tax', 'invest', 'mortgage', 'loan',
-    'insurance', 'financial', 'fiduciary', 'safe', 'safety', 'emergency',
-    'suicide', 'poison', 'overdose', 'hipaa', 'compliance', 'regulation',
-    'fda', 'audit', 'liability', 'malpractice', 'stroke', 'symptoms',
+# Strong critical indicators — always flag as critical
+_CRITICAL_WORDS_STRONG = frozenset([
+    'medical', 'medicine', 'drug', 'drugs', 'dosage', 'symptom', 'symptoms',
+    'diagnosis', 'disease', 'surgery', 'pregnant', 'lawyer', 'lawsuit',
+    'court', 'malpractice', 'terminated', 'fired', 'wrongful', 'mortgage',
+    'loan', 'fiduciary', 'suicide', 'poison', 'overdose', 'stroke',
+    'emergency', 'metformin', 'statin', 'ibuprofen',
+])
+
+# Weak critical indicators — only flag when NOT in a code/tech context
+_CRITICAL_WORDS_WEAK = frozenset([
+    'legal', 'rights', 'tax', 'invest', 'insurance', 'financial',
+    'safe', 'safety', 'hipaa', 'compliance', 'regulation',
+    'fda', 'audit', 'liability',
+])
+
+# Code/tech context indicators — if these appear alongside weak critical words,
+# the query is likely a code/tech question, not a critical personal query
+_CODE_CONTEXT_WORDS = frozenset([
+    'write', 'implement', 'code', 'function', 'class', 'api', 'endpoint',
+    'deploy', 'kubernetes', 'docker', 'pipeline', 'ci', 'cd', 'git',
+    'rest', 'middleware', 'jwt', 'oauth', 'express', 'react', 'python',
+    'java', 'javascript', 'typescript', 'golang', 'redis', 'sql',
+    'schema', 'database', 'microservices', 'architecture', 'design',
+    'checklist', 'configuration', 'server', 'backend', 'frontend',
+    'production', 'scalable', 'distributed', 'encryption', 'auth',
+    'authentication', 'authorization', 'webhook', 'debug', 'test',
 ])
 
 
 def _is_likely_critical(query: str) -> bool:
-    tokens = re.sub(r"[^a-z\s]", "", query.lower()).split()
-    return bool(set(tokens) & _CRITICAL_WORDS)
+    tokens = set(re.sub(r"[^a-z\s]", "", query.lower()).split())
+    # Strong critical words always trigger
+    if tokens & _CRITICAL_WORDS_STRONG:
+        return True
+    # Weak critical words only trigger if NOT in a code/tech context
+    if tokens & _CRITICAL_WORDS_WEAK:
+        has_code_context = bool(tokens & _CODE_CONTEXT_WORDS)
+        return not has_code_context
+    return False
 
 async def classifier_node(state: NexusState) -> dict:
     """Classifies the incoming query using Cerebras Llama 3.1 8B.

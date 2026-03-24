@@ -24,6 +24,20 @@ JUDGE_THRESHOLD = 7.0
 MAX_ESCALATIONS = 1
 KNN_K_VALUE = 5  # top-5 KNN vote
 
+# Per-category judge thresholds — lower threshold = fewer escalations
+JUDGE_THRESHOLDS = {
+    "critical": 7.0,        # medical/legal — keep strict
+    "critical_code": 6.0,   # code quality — more lenient to avoid costly Opus escalation
+    "default": 7.0,
+}
+
+# Per-category escalation models — use cheaper models where possible
+ESCALATION_MODELS = {
+    "critical": MODEL_OPUS,       # medical/legal needs the best
+    "critical_code": MODEL_GPT4O, # code can use GPT-4o (10x cheaper than Opus)
+    "default": MODEL_GPT4O,       # default escalation to GPT-4o instead of Opus
+}
+
 # GPT-5 baseline cost per query (for savings calculation).
 # Override via env when you have your own measured baseline for your workload.
 GPT5_BASELINE_COST = float(os.getenv("GPT5_BASELINE_COST", "0.012"))

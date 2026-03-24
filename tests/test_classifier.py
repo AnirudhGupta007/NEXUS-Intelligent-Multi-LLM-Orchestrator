@@ -1,7 +1,7 @@
 import json
 import pytest
 from unittest.mock import patch, AsyncMock
-from agents.classifier import classifier_node, _is_greeting_or_smalltalk
+from agents.classifier import classifier_node, _is_greeting_or_smalltalk, _is_likely_critical
 
 
 class TestGreetingDetection:
@@ -107,3 +107,60 @@ class TestClassifierNode:
                 result = await classifier_node({"query": "test", "conversation_turns": 0, "total_cost": 0.0, "total_latency": 0.0})
         assert len(result["trace"]) == 1
         assert result["trace"][0]["node"] == "classifier"
+
+    @pytest.mark.asyncio
+    async def test_subtasks_extracted(self):
+        from tests.conftest import make_mock_completion
+        mock_resp = make_mock_completion(json.dumps({
+            "can_self_answer": False, "self_answer": None,
+            "is_ambiguous": False, "clarifying_question": None, "is_critical": False,
+            "subtasks": ["Design the database", "Write the API"],
+        }))
+        with patch("agents.classifier.litellm.acompletion", new_callable=AsyncMock, return_value=mock_resp):
+            with patch("agents.classifier.calculate_cost", return_value=0.0001):
+                result = await classifier_node({"query": "Build a todo app", "conversation_turns": 0, "total_cost": 0.0, "total_latency": 0.0})
+        assert result["subtasks"] == ["Design the database", "Write the API"]
+
+    @pytest.mark.asyncio
+    async def test_malformed_json_fallback(self):
+        """LLM returns invalid JSON — should use safe defaults."""
+        from tests.conftest import make_mock_completion
+        mock_resp = make_mock_completion("not valid json at all {{{")
+        with patch("agents.classifier.litellm.acompletion", new_callable=AsyncMock, return_value=mock_resp):
+            with patch("agents.classifier.calculate_cost", return_value=0.0001):
+                result = await classifier_node({"query": "test", "conversation_turns": 0, "total_cost": 0.0, "total_latency": 0.0})
+        # Should not crash — falls back to safe defaults
+        assert result["can_self_answer"] is False
+        assert result["is_ambiguous"] is False
+
+    @pytest.mark.asyncio
+    async def test_cost_accumulated_correctly(self):
+        from tests.conftest import make_mock_completion
+        mock_resp = make_mock_completion(json.dumps({
+            "can_self_answer": False, "self_answer": None,
+            "is_ambiguous": False, "clarifying_question": None, "is_critical": False, "subtasks": [],
+        }))
+        with patch("agents.classifier.litellm.acompletion", new_callable=AsyncMock, return_value=mock_resp):
+            with patch("agents.classifier.calculate_cost", return_value=0.0005):
+                result = await classifier_node({"query": "test", "conversation_turns": 0, "total_cost": 0.01, "total_latency": 1.0})
+        assert result["total_cost"] == pytest.approx(0.0105, abs=0.0001)
+
+
+class TestCriticalGuardrail:
+    def test_strong_critical_words_always_flag(self):
+        assert _is_likely_critical("Is it safe to take this drug?") is True
+        assert _is_likely_critical("What are the symptoms of a stroke?") is True
+        assert _is_likely_critical("Can I sue for malpractice?") is True
+
+    def test_weak_critical_words_flag_without_code_context(self):
+        assert _is_likely_critical("What are my legal rights after termination?") is True
+        assert _is_likely_critical("Explain the tax implications of selling property.") is True
+
+    def test_weak_critical_words_not_flagged_in_code_context(self):
+        assert _is_likely_critical("Write a security audit checklist for a REST API") is False
+        assert _is_likely_critical("Implement HIPAA compliance checks in the backend code") is False
+        assert _is_likely_critical("Design a safe authentication middleware for Express") is False
+
+    def test_no_critical_words(self):
+        assert _is_likely_critical("What is the capital of France?") is False
+        assert _is_likely_critical("Write quicksort in Python") is False
