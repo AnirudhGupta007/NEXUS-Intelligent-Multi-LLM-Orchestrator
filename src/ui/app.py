@@ -56,13 +56,16 @@ def parse_sse_stream(response):
 
 
 def render_final_message(final_payload: dict) -> str:
+    """Returns ONLY the answer text for the chat bubble.
+    Cost / latency / routed / used are stored in session_state for the sidebar widgets;
+    they are intentionally NOT appended to the user-facing answer.
+    """
     response_text = final_payload.get("response", "")
     cost = float(final_payload.get("total_cost", 0.0))
     latency = float(final_payload.get("total_latency", 0.0))
     saved = float(final_payload.get("cost_saved", 0.0))
     routed = final_payload.get("routed_models", [])
     used = final_payload.get("used_models", [])
-    baseline_model = final_payload.get("baseline_model", BASELINE_LABEL).upper()
 
     st.session_state.total_cost += cost
     st.session_state.total_saved += saved
@@ -70,13 +73,7 @@ def render_final_message(final_payload: dict) -> str:
     st.session_state.last_routed_models = routed
     st.session_state.last_used_models = used
 
-    routed_line = ", ".join(routed) if routed else "N/A"
-    used_line = ", ".join(used) if used else "N/A"
-    metrics = (
-        f"\n\n---\nCost: ${cost:.5f} | Latency: {latency:.1f}s | Saved vs {baseline_model}: ${saved:.5f}"
-        f"\nRouted: {routed_line}\nUsed: {used_line}"
-    )
-    return response_text + metrics
+    return response_text
 
 
 init_state()

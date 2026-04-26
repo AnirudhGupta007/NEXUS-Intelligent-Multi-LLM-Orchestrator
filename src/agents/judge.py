@@ -33,14 +33,20 @@ async def judge_node(state: NexusState) -> dict:
 
     query = state.get("enriched_query") or state.get("query", "")
 
-    # Evaluate previously generated content
-    if state.get("aggregated_response"):
-        response_to_evaluate = state.get("aggregated_response")
-    elif state.get("worker_responses"):
-        worker_responses = state.get("worker_responses", [])
-        response_to_evaluate = worker_responses[-1].get("response", "") if worker_responses else "No response."
+    # Evaluate previously generated content — only surface successful worker output.
+    agg = state.get("aggregated_response")
+    if agg and agg.strip():
+        response_to_evaluate = agg
     else:
-        response_to_evaluate = "No response generated."
+        worker_responses = state.get("worker_responses", []) or []
+        successful = [
+            w for w in worker_responses
+            if not w.get("error") and (w.get("response") or "").strip()
+        ]
+        if successful:
+            response_to_evaluate = successful[-1].get("response", "")
+        else:
+            response_to_evaluate = "No response generated."
 
     is_critical = state.get("is_critical", False)
     category = _infer_category(query, is_critical)

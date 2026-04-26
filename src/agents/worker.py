@@ -13,6 +13,7 @@ async def worker_node(state: NexusState) -> dict:
     query = state.get("enriched_query") or state.get("query", "")
 
     start = time.time()
+    error_msg = ""
     try:
         response = await asyncio.wait_for(
             litellm.acompletion(
@@ -27,12 +28,14 @@ async def worker_node(state: NexusState) -> dict:
 
     except asyncio.TimeoutError:
         latency_ms = 30000.0
-        output_content = "[timeout]"
+        output_content = ""
+        error_msg = "timeout"
         cost_usd = 0.0
 
     except Exception as e:
         latency_ms = (time.time() - start) * 1000
-        output_content = f"Error: {str(e)}"
+        output_content = ""
+        error_msg = str(e)
         cost_usd = 0.0
 
     worker_result = {
@@ -40,12 +43,20 @@ async def worker_node(state: NexusState) -> dict:
         "response": output_content,
         "cost_usd": cost_usd,
         "latency_ms": round(latency_ms, 2),
+        "error": bool(error_msg),
+        "error_msg": error_msg,
     }
 
+    action = "completed" if not error_msg else "failed"
+    detail = (
+        f"model={model} latency={latency_ms:.0f}ms cost=${cost_usd:.6f}"
+        if not error_msg
+        else f"model={model} error={error_msg[:120]}"
+    )
     trace_entry: TraceEntry = {
         "node": "worker",
-        "action": "completed",
-        "detail": f"model={model} latency={latency_ms:.0f}ms cost=${cost_usd:.6f}",
+        "action": action,
+        "detail": detail,
         "timestamp": time.time(),
     }
 
@@ -65,6 +76,7 @@ async def parallel_worker_node(state: NexusState) -> dict:
 
     async def run_subtask(subtask: str, model: str) -> dict:
         start = time.time()
+        err = ""
         try:
             response = await asyncio.wait_for(
                 litellm.acompletion(
@@ -81,11 +93,13 @@ async def parallel_worker_node(state: NexusState) -> dict:
             cost_usd = calculate_cost(model, response)
         except asyncio.TimeoutError:
             latency_ms = 30000.0
-            content = "[timeout]"
+            content = ""
+            err = "timeout"
             cost_usd = 0.0
         except Exception as e:
             latency_ms = (time.time() - start) * 1000
-            content = f"Error: {str(e)}"
+            content = ""
+            err = str(e)
             cost_usd = 0.0
 
         return {
@@ -93,6 +107,8 @@ async def parallel_worker_node(state: NexusState) -> dict:
             "response": content,
             "cost_usd": cost_usd,
             "latency_ms": round(latency_ms, 2),
+            "error": bool(err),
+            "error_msg": err,
         }
 
     # Build coroutines — match each subtask to its selected model
@@ -112,9 +128,11 @@ async def parallel_worker_node(state: NexusState) -> dict:
         if isinstance(result, Exception):
             worker_responses.append({
                 "model": selected_models[i] if i < len(selected_models) else "unknown",
-                "response": f"Error: {str(result)}",
+                "response": "",
                 "cost_usd": 0.0,
                 "latency_ms": 0.0,
+                "error": True,
+                "error_msg": str(result),
             })
         else:
             worker_responses.append(result)

@@ -1,39 +1,41 @@
-import sys
 import os
+import sys
+
 import pytest
-import numpy as np
-from unittest.mock import MagicMock
+from dotenv import load_dotenv
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+SRC_DIR = os.path.join(PROJECT_ROOT, "src")
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
 
-
-def make_mock_completion(content, model="test-model", prompt_tokens=50, completion_tokens=100):
-    mock = MagicMock()
-    mock.choices = [MagicMock()]
-    mock.choices[0].message.content = content
-    mock.model = model
-    mock.usage = MagicMock()
-    mock.usage.prompt_tokens = prompt_tokens
-    mock.usage.completion_tokens = completion_tokens
-    return mock
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
 
-@pytest.fixture
-def mock_knn_index():
-    from core.config import (
-        MODEL_LLAMA_GROQ, MODEL_KIMI_K2, MODEL_GPT_OSS,
-        MODEL_QWEN_235B, MODEL_GPT4O, MODEL_GEMINI_FLASH, MODEL_OPUS,
+REQUIRED_KEYS = (
+    "FIREWORKS_API_KEY",
+    "GROQ_API_KEY",
+    "CEREBRAS_API_KEY",
+    "GEMINI_API_KEY",
+    "OPENROUTER_API_KEY",
+)
+
+
+def pytest_collection_modifyitems(config, items):
+    """Auto-skip live tests when API keys are missing."""
+    missing = [k for k in REQUIRED_KEYS if not os.getenv(k)]
+    if not missing:
+        return
+    skip_live = pytest.mark.skip(
+        reason=f"Live test skipped — missing env keys: {', '.join(missing)}"
     )
-    models = [MODEL_LLAMA_GROQ, MODEL_KIMI_K2, MODEL_GPT_OSS, MODEL_QWEN_235B, MODEL_GPT4O, MODEL_GEMINI_FLASH, MODEL_OPUS]
-    np.random.seed(42)
-    all_vectors = []
-    all_labels = []
-    for i, model in enumerate(models):
-        center = np.zeros(1536)
-        center[i * 200 : (i + 1) * 200] = 1.0
-        for _ in range(10):
-            vec = center + np.random.randn(1536) * 0.1
-            vec = vec / np.linalg.norm(vec)
-            all_vectors.append(vec)
-            all_labels.append(model)
-    return {"all_vectors": np.array(all_vectors), "all_labels": all_labels}
+    for item in items:
+        if "live" in item.keywords:
+            item.add_marker(skip_live)
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "live: test that calls real provider APIs (requires .env keys)",
+    )

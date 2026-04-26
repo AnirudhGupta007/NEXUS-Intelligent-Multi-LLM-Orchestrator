@@ -6,11 +6,11 @@ import os
 MODEL_CLASSIFIER = "cerebras/llama3.1-8b"
 
 # Worker Models (selected by KNN router)
-MODEL_LLAMA_GROQ = "groq/llama-3.1-8b-instant"          # Simple Q&A
-MODEL_KIMI_K2 = "groq/moonshotai/kimi-k2-instruct-0905"  # Code low-medium (updated)
-MODEL_GPT_OSS = "cerebras/gpt-oss-120b"                  # General medium tasks (updated to Cerebras)
+MODEL_LLAMA_GROQ = "groq/llama-3.1-8b-instant"                            # Simple Q&A
+MODEL_KIMI_K2 = "groq/meta-llama/llama-4-scout-17b-16e-instruct"          # Code low-medium (Llama 4 Scout via Groq)
+MODEL_GPT_OSS = "groq/openai/gpt-oss-120b"                                # General medium (gpt-oss-120b via Groq)
 MODEL_QWEN_235B = "cerebras/qwen-3-235b-a22b-instruct-2507" # Research, complex reasoning (updated to Cerebras)
-MODEL_GPT4O = "openai/gpt-4o"                            # Critical Q&A, factual research
+MODEL_GPT4O = "openrouter/openai/gpt-4o"                 # Critical Q&A, factual research (via OpenRouter)
 MODEL_GEMINI_FLASH = "gemini/gemini-2.5-flash"           # Math, aggregator, judge
 MODEL_OPUS = "openrouter/anthropic/claude-opus-4.6"      # Critical code only
 

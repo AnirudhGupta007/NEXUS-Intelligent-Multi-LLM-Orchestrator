@@ -11,23 +11,28 @@ from agents.judge import judge_node, escalation_worker_node
 from core.config import MAX_ESCALATIONS
 
 def set_final(state: NexusState):
-    """Set the final response before graph exit and ensure metrics are preserved."""
-    agg = state.get("aggregated_response")
-    res = ""
-    if agg:
-        res = agg
+    """Set the final response before graph exit and ensure metrics are preserved.
+    Worker error strings are never leaked to the user; only successful responses are surfaced.
+    If nothing succeeded, a clean fallback message is shown.
+    """
+    final_existing = state.get("final_response")
+    if final_existing:
+        res = final_existing
     else:
-        workers = state.get("worker_responses", [])
-        if workers:
-            # If we reached here without aggregation, it's a single worker response or escalation
-            res = workers[-1].get("response", "")
+        agg = state.get("aggregated_response")
+        if agg and agg.strip():
+            res = agg
         else:
-            final = state.get("final_response")
-            if final:
-                res = final
+            workers = state.get("worker_responses", []) or []
+            successful = [
+                w for w in workers
+                if not w.get("error") and (w.get("response") or "").strip()
+            ]
+            if successful:
+                res = successful[-1].get("response", "")
             else:
-                res = "No response generated."
-            
+                res = "Sorry, I couldn't generate a response right now. Please try again."
+
     return {
         "final_response": res,
         "total_cost": state.get("total_cost", 0.0),
