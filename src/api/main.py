@@ -1,4 +1,5 @@
 import json
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -85,7 +86,11 @@ async def state_to_sse(generator):
 
 @app.post("/chat")
 async def chat_endpoint(req: ChatRequest):
-    config = {"configurable": {"thread_id": req.session_id}}
+    # Each new query gets a fresh thread_id so its checkpoint can't pick up stale
+    # final_response / aggregated_response / worker_responses from the previous query.
+    # active_sessions remembers the LATEST thread_id per session so /resume can find it for HITL.
+    thread_id = f"{req.session_id}-{uuid.uuid4().hex[:8]}"
+    config = {"configurable": {"thread_id": thread_id}}
     active_sessions[req.session_id] = config
     initial_state = {
         "query": req.query,
