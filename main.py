@@ -3,6 +3,10 @@ import time
 import sys
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 def run_backend(env):
     """Start the FastAPI backend server."""
     # We use 'api.main:app' and --app-dir 'src' so Uvicorn finds the 'core' module correctly
